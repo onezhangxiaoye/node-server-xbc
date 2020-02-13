@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= title %></title>
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+    <script src="/javascripts/station_name.js"></script>
+    <script src="/javascripts/jquery.js"></script>
+    <style>
+      *{
+        margin: 0;
+        padding: 0;
+      }
+      #city-list li:hover{
+        background-color: #ddd;
+        cursor: pointer;
+      }
+      .query-form{
+        height: 200px;
+        display: flex;
+      }
+      table{
+        text-align: center;
+      }
+      table td, table th{
+        border-bottom: 1px solid #ccc;
+      }
+      thead th{
+        width: 100px;
+      }
+    </style>
+  </head>
+  <body>
+    <input type="text" placeholder="账号" oninput="userNameChange(event)">
+    <input type="text" placeholder="密码" oninput="passwordChange(event)">
+    <button onclick="login()">登录</button>
+    <button onclick="getUserInfo()">查看用户信息</button>
+    <button id="form-data">FormDataTest</button>
+    <input type="number" placeholder="充值金额" id="user-pay">
+    <button id="user-pay-button">充值</button>
+    <br><br><br>
+
+    <div class="login">
+      <div>
+        <div>
+          <label>用户名：</label>
+          <input id="username" type="text" placeholder="填写用户名">
+        </div>
+        <div>
+          <label>密码：</label>
+          <input id="password" type="password" placeholder="填写用密码" >
+        </div>
+        <button id="get-code">查看验证码</button>
+        <img src="" alt="">
+      </div>
+    </div>
+
+    <div class="query-form">
+      <div>
+        <div>
+          <label>出发站：</label>
+          <input id="from-station" type="text" placeholder="填写出发站">
+        </div>
+        <div>
+          <label>终点站：</label>
+          <input id="to-station" type="text" placeholder="填写终点站">
+        </div>
+        <div>
+          <label>出发时间：</label>
+          <input id="train-date" type="text" placeholder="填写出发时间">
+        </div>
+        <button id="query">查询车次</button>
+      </div>
+      <div style="margin-left: 20px;">
+        <ul id="city-list">
+        </ul>
+      </div>
+    </div>
+
+
+  <table cellpadding="0" cellspacing="0" border="0">
+    <thead>
+      <tr>
+        <th>
+          车次
+        </th>
+        <th>
+          出发站
+        </th>
+        <th>
+          到达站
+        </th>
+        <th>
+          出发时间
+        </th>
+        <th>
+          到达时间
+        </th>
+        <th>
+          历时
+        </th>
+        <th>
+          硬座
+        </th>
+        <th>
+          无座
+        </th>
+        <th>
+          消息
+        </th>
+      </tr>
+    </thead>
+    <tbody id="table-tickets">
+
+    </tbody>
+  </table>
+
+  </body>
+  <script>
+    const ip = '<%= ipAddress %>';
+    let station_names__ = station_names.split('@');
+
+    let stationFlag = true,
+        fromStation = '',
+        fromCityName = '',
+        toStation = '',
+        toCityName = '',
+        trainDate = '';
+
+    function dealStationNames(v){
+      //lowercaseShorthand  小写简写
+      //cityName  城市汉字名称
+      //capitalShorthand  大写简写
+      let [lowercaseShorthand, cityName, capitalShorthand, pinyin, lowercaseShorthand2, n] = v.split('|');
+      return {lowercaseShorthand, cityName, capitalShorthand, pinyin, lowercaseShorthand2, n};
+    }
+
+    function getCitys(inputText){
+      $('#city-list').empty();
+      let count = 0;
+      for (let i = 0; i < station_names__.length; i++) {
+        let item = station_names__[i];
+        if(count < 10 && item.includes(inputText)){
+          let itemObj = dealStationNames(item);
+          $('#city-list').append($(`<li data-item="${item}">${itemObj.cityName}      ${itemObj.pinyin}</li>`));
+          count++;
+        }
+      }
+    }
+
+    $('#city-list').on('click', 'li', function () {
+      let item = dealStationNames(this.dataset.item)
+      $(stationFlag ? '#from-station' : '#to-station').val(item.cityName);
+      if(stationFlag){
+        fromStation = item;
+      }else{
+        toStation = item;
+      }
+    })
+
+    $('#from-station').keyup(function () {
+      stationFlag = true;
+      getCitys(this.value);
+    })
+
+    $('#to-station').keyup(function () {
+      stationFlag = false;
+      getCitys(this.value);
+    });
+
+    $('#train-date').keyup(function () {
+      trainDate = this.value
+    });
+
+    //查询班次
+    $('#query').click(function () {
+      // console.log(fromStation, toStation, trainDate);
+      $('#table-tickets').empty();
+      const xml = new XMLHttpRequest();
+      xml.onload = function () {
+        let {data} = JSON.parse(xml.response),
+            dom = '';
+        for (let i = 0; i < data.length; i++) {
+          let d = data[i];
+          dom += `<tr><td>${d.station_train_code}</td><td>${d.from_station_name}</td><td>${d.to_station_name}</td><td>${d.start_time}</td><td>${d.arrive_time}</td><td>${d.lishi}</td><td>${d.yz_num}</td><td>${d.wz_num}</td><td>${d.buttonTextInfo}</td></tr>`;
+        }
+        $('#table-tickets').append(dom);
+      }
+
+      xml.open('post', `http://${ip}:3000/reptile`)
+      xml.setRequestHeader('Content-Type', 'application/json')
+      xml.send(JSON.stringify({fromStation, toStation, trainDate}))
+    });
+
+    $('#get-code').click(function () {
+      const xml = new XMLHttpRequest();
+      xml.onload = function () {
+        console.log(xml.response)
+      }
+
+
+      xml.open('post', `http://${ip}:3000/reptile`)
+      xml.setRequestHeader('Content-Type', 'application/json')
+      xml.send(JSON.stringify({fromStation, toStation, trainDate}))
+    })
+
+
+
+
+
+  $('#user-pay-button').click(function () {
+    let money = $(this).prev().val(),
+        data = {money};
+
+    const xml = new XMLHttpRequest();
+    xml.onload = function (params) {
+      console.log(params);
+    }
+
+    xml.open('post', `http://${ip}:3000/users/pay`)
+    xml.setRequestHeader('Content-Type', 'application/json')
+    xml.setRequestHeader('Authorization', 'name=123;age=234')
+
+    xml.send(JSON.stringify(data))
+  })
+
+
+  $('#form-data').click(function () {
+    const xml = new XMLHttpRequest();
+    xml.onload = function (params) {
+      console.log(params);
+    }
+
+    xml.open('post', `http://${ip}:3000/users/formData`)
+    // xml.setRequestHeader('Content-Type', 'application/json')
+    xml.setRequestHeader('Authorization', 'name=123;age=234')
+
+    let formData = new FormData();
+    formData.append('name', '张三');
+    formData.append('age', '16');
+
+    xml.send(formData)
+  })
+
+
+    let data = {};
+    function userNameChange(e) {
+      data.userName = e.target.value;
+    }
+    function passwordChange(e) {
+      data.password = e.target.value;
+    }
+
+    function login() {
+      const xml = new XMLHttpRequest();
+      xml.onload = function (params) {
+          console.log(params);
+      }
+
+      xml.open('post', `http://${ip}:3000/users`)
+      xml.setRequestHeader('Content-Type', 'application/json')
+      xml.setRequestHeader('Authorization', 'name=123;age=234')
+
+      xml.send(JSON.stringify(data))
+    }
+    function getUserInfo() {
+      const xml = new XMLHttpRequest();
+      xml.onload = function (params) {
+          console.log(params);
+      }
+
+      xml.open('post', `http://${ip}:3000/users/userInfo`)
+      xml.setRequestHeader('Content-Type', 'application/json')
+      xml.send()
+    }
+  </script>
+</html>
